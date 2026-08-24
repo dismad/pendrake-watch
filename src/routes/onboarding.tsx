@@ -21,6 +21,7 @@ import {
 	getWalletState,
 	importUfvk,
 	parseUfvk,
+	type Network,
 	type ParseUfvkResult,
 	type UfvkNetwork,
 } from "@/lib/ipc";
@@ -95,11 +96,12 @@ export function OnboardingPage() {
 		setDraft((d) => ({ ...d, [key]: value }));
 	}
 
-	// The step sequence is the router: regtest keeps the Indexer step, mainnet
-	// drops it, and a held session passphrase drops Set Password (src/lib/onboarding).
-	// It is derived from the pasted key, so editing the UFVK on the first step
-	// reshapes the flow live.
-	const steps = onboardingSteps(networkFromUfvk(draft.ufvk), sessionHeld);
+	// Indexer is always offered so the user can keep the public default or point at
+	// a custom lightwalletd. A held session passphrase drops Set Password
+	// (src/lib/onboarding). Derived from the pasted key, so editing the UFVK on the
+	// first step reshapes the flow live.
+	const network = networkFromUfvk(draft.ufvk);
+	const steps = onboardingSteps(network, sessionHeld);
 	const position = Math.min(index, steps.length - 1);
 	const current = steps[position];
 	const isLast = position === steps.length - 1;
@@ -122,16 +124,18 @@ export function OnboardingPage() {
 		try {
 			// Never call removeWallet here — Add wallet and first-run both only import.
 			const network = networkFromUfvk(draft.ufvk);
+			const chosen = draft.indexerUri.trim();
 			await importUfvk({
 				ufvk: draft.ufvk.trim(),
 				// The daemon's resolver settles this raw choice into a height
 				// (docs/adr/0002), so the GUI never pre-resolves a date.
 				birthday: birthdayChoice(draft, network),
-				// Regtest has no universal Indexer, so its onboarding requires a custom
-				// one and never falls back to DEFAULT_INDEXER, the mainnet endpoint
-				// (AUZ-104). Mainnet skips the step and takes the public default.
+				// Prefer the Indexer step input. Mainnet may leave it blank to keep
+				// the public default; regtest already requires a URL in the UI
+				// (AUZ-104). Persist whatever was chosen so select/unlock reopen
+				// the same LWD per wallet.
 				indexerUri:
-					network === "regtest" ? draft.indexerUri.trim() : DEFAULT_INDEXER,
+					chosen || (network === "mainnet" ? DEFAULT_INDEXER : ""),
 				network,
 				// First onboarding sets the global passphrase (docs/adr/0003). A
 				// post-Replace import omits it so the daemon reuses the held one.
@@ -170,6 +174,7 @@ export function OnboardingPage() {
 						<IndexerStep
 							draft={draft}
 							set={set}
+							network={network}
 							stepNumber={position + 1}
 							stepTotal={steps.length}
 							onBack={back}
@@ -356,7 +361,6 @@ function ImportStep({
 						)}
 					</div>
 				</label>
-
 				<UfvkFeedback identity={identity} />
 			</div>
 
@@ -381,6 +385,7 @@ function ImportStep({
 					Cancel
 				</button>
 			)}
+
 			<PrimaryButton
 				disabled={identity?.kind !== "valid" || busy}
 				onClick={onNext}
@@ -469,6 +474,7 @@ function DateField({
 }) {
 	const [open, setOpen] = useState(false);
 	const selected = dateFromInput(value);
+
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<div className="relative">
@@ -596,13 +602,10 @@ function Verdict({ result }: { result: ParseUfvkResult }) {
 	);
 }
 
-// The selected option is marked by a brand capsule that slides between segments
-// rather than popping onto each. The capsule is one segment wide and rides on
-// translateX, so the move is a single GPU transform and a click mid-slide
-// retargets it. Segments are equal width to keep that translate exact.
 function IndexerStep({
 	draft,
 	set,
+	network,
 	stepNumber,
 	stepTotal,
 	onBack,
@@ -613,6 +616,7 @@ function IndexerStep({
 }: {
 	draft: Draft;
 	set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+	network: Network;
 	stepNumber: number;
 	stepTotal: number;
 	onBack: () => void;
@@ -622,16 +626,22 @@ function IndexerStep({
 	busy: boolean;
 	error: string | null;
 }) {
-	// Regtest has no universal Indexer, so onboarding requires one here and the
-	// primary action stays disabled until a URL is entered (AUZ-104).
-	const ready = draft.indexerUri.trim().length > 0;
+	const isRegtest = network === "regtest";
+	// Regtest has no public default, so a URL is required (AUZ-104). Mainnet may
+	// leave the field blank to keep DEFAULT_INDEXER.
+	const ready = isRegtest ? draft.indexerUri.trim().length > 0 : true;
+
 	return (
 		<>
 			<StepHeading
 				step={stepNumber}
 				total={stepTotal}
 				title="Indexer"
-				subtitle="A regtest key was detected. Point it at the Indexer to connect to."
+				subtitle={
+					isRegtest
+						? "A regtest key was detected. Point it at the Indexer to connect to."
+						: "Keep the public default or point this wallet at your own lightwalletd."
+				}
 			/>
 
 			<label className="flex flex-col gap-2">
@@ -639,7 +649,9 @@ function IndexerStep({
 				<input
 					autoFocus
 					className={`${fieldBase} h-12 font-mono`}
-					placeholder="https://localhost:8232"
+					placeholder={
+						isRegtest ? "https://localhost:8232" : DEFAULT_INDEXER
+					}
 					spellCheck={false}
 					autoComplete="off"
 					value={draft.indexerUri}

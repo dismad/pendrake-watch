@@ -849,21 +849,30 @@ impl WalletService {
     }
 
     fn client_config(
-        &self,
-        chain: ChainType,
-        indexer_uri: &str,
-        wallet: WalletConfig,
-    ) -> ClientConfig {
-        let uri: http::Uri = indexer_uri
-            .parse()
-            .unwrap_or_else(|_| DEFAULT_INDEXER_URI.parse().expect("valid default uri"));
-        ClientConfig::builder()
-            .set_chain_type(chain)
-            .set_indexer_uri(uri)
-            .set_wallet_dir(self.scoped_paths().wallet_dir.clone())
-            .set_wallet_config(wallet)
-            .build()
-    }
+	    &self,
+	    chain: ChainType,
+	    indexer_uri: &str,
+	    wallet: WalletConfig,
+	) -> ClientConfig {
+	    let uri: http::Uri = match indexer_uri.parse() {
+		Ok(u) => u,
+		Err(_) => {
+		    tracing::warn!(
+		        indexer_uri,
+		        "invalid indexer_uri in meta; falling back to DEFAULT_INDEXER_URI"
+		    );
+		    DEFAULT_INDEXER_URI
+		        .parse()
+		        .expect("valid default uri")
+		}
+	    };
+	    ClientConfig::builder()
+		.set_chain_type(chain)
+		.set_indexer_uri(uri)
+		.set_wallet_dir(self.scoped_paths().wallet_dir.clone())
+		.set_wallet_config(wallet)
+		.build()
+	}
 
     async fn wallet_state(&self) -> WalletState {
         let locked = self.session_locked.load(Ordering::SeqCst);
