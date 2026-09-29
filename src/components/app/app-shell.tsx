@@ -112,9 +112,9 @@ export function AppShell({
 	children: ReactNode;
 }) {
 	return (
-		<div className="app-frame fixed inset-0 z-50 flex bg-ink text-foreground">
+		<div className="app-frame fixed inset-0 z-50 flex min-w-[1100px] bg-ink text-foreground">
 			<AppSidebar active={active} wallet={wallet} sync={sync} />
-			<div className="relative my-3 mr-3 flex-1 rounded-2xl border-2 border-border bg-background">
+			<div className="relative my-3 mr-3 min-w-0 flex-1 rounded-2xl border-2 border-border bg-background">
 				<main
 					data-scroll-restoration-id="app-main"
 					className="app-content absolute inset-0 overflow-y-auto rounded-2xl"
@@ -311,7 +311,7 @@ function WalletCard({
 	const headerName = activeDisplayName(wallet);
 
 	return (
-		<div className="relative mt-5 flex flex-col rounded-[1rem] border border-white/10 bg-white/4 p-4">
+		<div className="relative mt-5 flex flex-col rounded-[1rem] border border-white/10 bg-white/[0.04] p-3.5">
 			<div className="flex items-start gap-3">
 				<button
 					type="button"
@@ -339,7 +339,7 @@ function WalletCard({
 						</span>
 					</div>
 				</button>
-				<div className="flex shrink-0 items-center gap-1 pt-1">
+				<div className="flex shrink-0 items-center gap-0.5 pt-1">
 					{wallet?.exists && !wallet.locked && <ReceiveQrButton />}
 					{wallet?.exists && <DiscreetEye />}
 					<SyncChip sync={sync} />
@@ -348,7 +348,7 @@ function WalletCard({
 
 			{open && (
 				<div
-					className="absolute inset-x-4 top-full z-20 mt-2 max-h-72 overflow-auto rounded-xl border border-white/10 bg-[#0c1222] p-1 shadow-lg"
+					className="app-wallet-menu absolute inset-x-0 top-full z-20 mt-1.5 max-h-80 overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-[#12141c] p-1.5 shadow-xl"
 					role="listbox"
 				>
 					{wallets.length === 0 ? (
@@ -362,7 +362,7 @@ function WalletCard({
 								aria-selected={w.active}
 								disabled={busy}
 								onClick={() => onPick(w.id)}
-								className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-white/10 ${
+								className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-xs hover:bg-white/10 ${
 									w.active ? "bg-white/10" : ""
 								}`}
 							>
@@ -373,10 +373,10 @@ function WalletCard({
 									/>
 								) : null}
 								<span className="min-w-0 flex-1 truncate">
-									<DiscreetValue kind="label">{w.label}</DiscreetValue>
+									<DiscreetValue kind="label">{w.label?.trim() || w.fingerprint?.slice(0, 8) || w.id.slice(0, 8)}</DiscreetValue>
 								</span>
 								{w.active && (
-									<span className="text-[10px] uppercase tracking-wide text-white/40">
+									<span className="shrink-0 text-[10px] uppercase tracking-wide text-white/35">
 										active
 									</span>
 								)}
@@ -507,7 +507,7 @@ function AppSidebar({
 	const navigate = useNavigate();
 
 	return (
-		<aside className="app-sidebar flex w-64 shrink-0 flex-col bg-ink px-3 pb-5 pt-9 text-white">
+		<aside className="app-sidebar flex w-80 shrink-0 flex-col bg-ink px-4 pb-5 pt-9 text-white">
 			<div className="flex items-center justify-center px-2 py-2">
 				<img src={pendrakeLogo} alt="Pendrake" className="h-8 select-none" />
 			</div>

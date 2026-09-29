@@ -16,16 +16,16 @@
 }
 
 .note-badge--ironwood {
-  background: #fcebe7;
-  color: #9b2c1a;
+  background: #fde8e6;
+  color: #b42318;
 }
 .note-badge--orchard {
-  background: #e1f5ee;
-  color: #0f6e56;
+  background: #e5f6e7;
+  color: #237a2c;
 }
 .note-badge--sapling {
-  background: #e6f1fb;
-  color: #185fa5;
+  background: #fbf3dc;
+  color: #8a6508;
 }
 .note-badge--transparent {
   background: #f1efe8;
@@ -50,16 +50,16 @@
 }
 
 .dark .note-badge--ironwood {
-  background: color-mix(in srgb, #c45c2a 28%, transparent);
-  color: #f0a57a;
+  background: color-mix(in srgb, #E23C32 28%, transparent);
+  color: #f2a29c;
 }
 .dark .note-badge--orchard {
-  background: color-mix(in srgb, #1d9e75 22%, transparent);
-  color: #6fd9b6;
+  background: color-mix(in srgb, #3DAA4A 22%, transparent);
+  color: #8ad490;
 }
 .dark .note-badge--sapling {
-  background: color-mix(in srgb, #378add 22%, transparent);
-  color: #8fbff0;
+  background: color-mix(in srgb, #E6A317 22%, transparent);
+  color: #f0cc6a;
 }
 .dark .note-badge--transparent {
   background: color-mix(in srgb, #888780 24%, transparent);
@@ -229,13 +229,13 @@
   border-radius: 50%;
 }
 .pool-dot--ironwood {
-  background: #c45c2a;
+  background: #E23C32;
 }
 .pool-dot--orchard {
-  background: #1d9e75;
+  background: #3DAA4A;
 }
 .pool-dot--sapling {
-  background: #378add;
+  background: #E6A317;
 }
 .pool-dot--transparent {
   background: #888780;

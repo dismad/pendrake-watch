@@ -64,15 +64,17 @@ export function ReceiveQrButton({ disabled }: { disabled?: boolean }) {
       <PopoverTrigger
         disabled={disabled || !ua}
         aria-label="Show receive address QR"
-        className="inline-flex size-7 items-center justify-center rounded-md text-white/70 outline-none hover:bg-white/10 hover:text-white disabled:opacity-40"
+        title="Receive"
+        className="inline-flex size-7 items-center justify-center rounded-md text-white/55 outline-none hover:bg-white/10 hover:text-white disabled:opacity-40"
       >
         <IconQrcode className="size-4" />
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-[260px] border-white/10 bg-[#0c1222] p-3 text-white"
+        side="bottom"
+        className="w-64 border-white/10 bg-[#12141c] p-3 text-white"
       >
-        <p className="mb-2 text-[11px] uppercase tracking-wide text-white/45">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-white/45">
           Receive
         </p>
         {masked ? (

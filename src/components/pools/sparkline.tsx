@@ -38,7 +38,7 @@ export function Sparkline({
 	return (
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
-			className={`text-brand ${className ?? ""}`}
+			className={className ?? "text-brand"}
 			preserveAspectRatio="none"
 			aria-hidden
 		>

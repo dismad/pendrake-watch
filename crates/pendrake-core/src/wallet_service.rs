@@ -1110,7 +1110,8 @@ impl WalletService {
                 .session_passphrase
                 .lock()
                 .await
-                .clone()
+                .as_deref()
+                .cloned()
                 .ok_or_else(|| anyhow!("no session passphrase held for this import"))?,
         };
 

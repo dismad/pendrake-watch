@@ -32,31 +32,36 @@ const POOL_META: Record<
     Icon: ComponentType<{ className?: string }>;
     tile: string;
     iconClass: string;
+    spark: string;
   }
 > = {
   ironwood: {
     title: "Ironwood",
     Icon: IconTrees,
-    tile: "bg-brand/15 text-brand",
+    tile: "bg-[#E23C32]/15 text-[#E23C32]",
     iconClass: "size-8",
+    spark: "text-[#E23C32]",
   },
   orchard: {
     title: "Orchard",
     Icon: IconTrees,
-    tile: "bg-brand/15 text-brand",
+    tile: "bg-[#3DAA4A]/15 text-[#3DAA4A]",
     iconClass: "size-8",
+    spark: "text-[#3DAA4A]",
   },
   sapling: {
     title: "Sapling",
     Icon: IconPlant,
-    tile: "bg-brand/15 text-brand",
+    tile: "bg-[#E6A317]/15 text-[#E6A317]",
     iconClass: "size-8",
+    spark: "text-[#E6A317]",
   },
   transparent: {
     title: "Transparent",
     Icon: RingsIcon,
-    tile: "bg-[#4a2913]",
+    tile: "bg-[#4a2913] text-[#E8B07A]",
     iconClass: "size-8",
+    spark: "text-[#C47A3A]",
   },
 };
 
@@ -133,7 +138,7 @@ function PoolCard({ stat }: { stat: PoolStat }) {
         {stat.trend.length >= 2 && Math.max(...stat.trend) > 0 ? (
           <Sparkline
             values={stat.trend}
-            className="hidden h-20 w-1/2 shrink-0 md:block"
+            className={`hidden h-20 w-1/2 shrink-0 md:block ${meta.spark}`}
           />
         ) : (
           <div className="hidden h-20 w-1/2 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-sm font-medium text-muted-foreground md:flex">
