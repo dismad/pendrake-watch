@@ -89,6 +89,12 @@ impl Paths {
         std::fs::create_dir_all(&self.wallets_dir).with_context(|| {
             format!("creating wallets dir {}", self.wallets_dir.display())
         })?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&self.root, std::fs::Permissions::from_mode(0o700))
+                .with_context(|| format!("restricting data dir {}", self.root.display()))?;
+        }
         if self.wallet_id.is_some() {
             std::fs::create_dir_all(&self.wallet_dir).with_context(|| {
                 format!("creating wallet dir {}", self.wallet_dir.display())
@@ -251,5 +257,23 @@ impl Meta {
         std::fs::write(&tmp, &bytes).context("writing meta.json.tmp")?;
         std::fs::rename(&tmp, path).context("renaming meta.json")?;
         Ok(())
+    }
+}
+
+
+#[cfg(all(test, unix))]
+mod paths_perm_tests {
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::Paths;
+
+    #[test]
+    fn the_data_dir_is_owner_only() {
+        let root = std::env::temp_dir().join("pendrake-test-data-dir-mode");
+        let _ = std::fs::remove_dir_all(&root);
+        let paths = Paths::with_root(root.clone());
+        paths.ensure_dirs().unwrap();
+        let mode = std::fs::metadata(&root).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
     }
 }

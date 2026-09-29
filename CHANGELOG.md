@@ -1,5 +1,19 @@
 # Pendrake Watch — Update log
 
+## 2026-09-29: hardening + receive QR (keep one-active / manual sync)
+
+Ported the local-boundary fixes from upstream `main` without taking all-wallets
+tip-follow. One wallet stays active; sync still starts from the Sync chip.
+
+- Socket is `0600`, data dir is `0700`.
+- IPC request lines capped at 64 KiB; passphrase-bearing lines live in zeroizing memory.
+- Wrong passphrase delays double per miss up to 5s; checks serialize on one gate.
+- Session passphrase stored as `Zeroizing<String>`.
+- Receive QR button on the active wallet card: Unified Address QR + copy.
+  Hidden while discreet or locked.
+
+---
+
 **Date:** 2026-08-17  
 **Focus:** Ironwood (NU6.3) support, multi-wallet accounts, manual sync, local build hardening, onboarding indexer choice, Notes UI polish
 

@@ -34,6 +34,7 @@ import { DiscreetValue } from "@/components/ui/discreet-value";
 import { DiscreetEye } from "./discreet-eye";
 import pendrakeLogo from "@/assets/pendrake-logo.svg";
 import { Toaster } from "@/components/ui/sonner";
+import { ReceiveQrButton } from "./receive-qr";
 import { isSyncing, SyncBar, SyncChip } from "./sync-status";
 import {
 	AlertDialog,
@@ -339,6 +340,7 @@ function WalletCard({
 					</div>
 				</button>
 				<div className="flex shrink-0 items-center gap-1 pt-1">
+					{wallet?.exists && !wallet.locked && <ReceiveQrButton />}
 					{wallet?.exists && <DiscreetEye />}
 					<SyncChip sync={sync} />
 				</div>

@@ -23,6 +23,7 @@ use pendrake_ipc::{
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio::sync::{Mutex, Notify, RwLock};
+use zeroize::Zeroizing;
 
 use pepper_sync::config::{PerformanceLevel, SyncConfig, TransparentAddressDiscovery};
 use pepper_sync::events::{ScanTiming, SequencedSyncEvent, SyncEvent as LibSyncEvent};
@@ -158,7 +159,9 @@ pub struct WalletService {
     /// imported or unlocked. Replace keeps it across the wipe so the new Wallet
     /// inherits it and onboarding skips Set Password; Start over drops it
     /// (docs/adr/0004). Never persisted.
-    session_passphrase: Mutex<Option<String>>,
+    session_passphrase: Mutex<Option<Zeroizing<String>>>,
+    /// Consecutive failed `verifyPassphrase` / `unlock` attempts. Reset on a match.
+    verify_failures: Mutex<u32>,
     /// Armed by `run` so a `shutdown` IPC request can wake the host process.
     /// Taken on first use; subsequent calls are no-ops.
     shutdown_tx: std::sync::Mutex<Option<std::sync::mpsc::Sender<()>>>,
@@ -581,6 +584,7 @@ impl WalletService {
             encrypted: AtomicBool::new(false),
             subscribers: AtomicUsize::new(0),
             session_passphrase: Mutex::new(None),
+            verify_failures: Mutex::new(0),
             shutdown_tx: std::sync::Mutex::new(None),
             paths,
         });
@@ -1177,7 +1181,7 @@ impl WalletService {
         meta.save(&self.scoped_paths().meta_file)?;
         *self.meta.write().await = Some(meta);
         *self.client.lock().await = Some(client);
-        *self.session_passphrase.lock().await = Some(passphrase);
+        *self.session_passphrase.lock().await = Some(Zeroizing::new(passphrase));
         self.encrypted.store(true, Ordering::SeqCst);
         self.notifications_enabled.store(true, Ordering::SeqCst);
         // A fresh Wallet starts private: fiat stays off until the user consents anew, so a
@@ -1238,7 +1242,7 @@ impl WalletService {
         .map_err(|e| anyhow!("unlock failed: {e:?}"))?;
         client.save_task().await;
         *self.client.lock().await = Some(client);
-        *self.session_passphrase.lock().await = Some(passphrase);
+        *self.session_passphrase.lock().await = Some(Zeroizing::new(passphrase));
         self.session_locked.store(false, Ordering::SeqCst);
         // Nudge the price loop: if fiat was enabled, it was parked while locked.
         self.price_restart.notify_one();
@@ -1447,10 +1451,18 @@ impl WalletService {
     /// that opened the current Wallet. Used by the Replace modal before it wipes
     /// anything (docs/adr/0004). False when nothing is held.
     async fn verify_passphrase(&self, passphrase: &str) -> bool {
-        match &*self.session_passphrase.lock().await {
+        let mut failures = self.verify_failures.lock().await;
+        let matched = match &*self.session_passphrase.lock().await {
             Some(held) => ct_eq(held.as_bytes(), passphrase.as_bytes()),
             None => false,
+        };
+        if matched {
+            *failures = 0;
+            return true;
         }
+        *failures = failures.saturating_add(1);
+        tokio::time::sleep(verify_delay(*failures)).await;
+        false
     }
 
     /// Arm the GUI session lock without disturbing the open wallet. Sign Out calls
@@ -2296,6 +2308,11 @@ fn now_secs() -> u64 {
 
 /// Constant-time byte comparison, so re-auth doesn't leak the passphrase through
 /// early-exit timing. Differing lengths short-circuit, which only reveals length.
+fn verify_delay(failures: u32) -> Duration {
+    let shift = failures.saturating_sub(1).min(5);
+    Duration::from_millis(250).saturating_mul(1u32 << shift).min(Duration::from_secs(5))
+}
+
 fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -2931,6 +2948,15 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn a_wrong_passphrase_waits_longer_each_time_up_to_the_cap() {
+        assert_eq!(verify_delay(1), Duration::from_millis(250));
+        assert_eq!(verify_delay(2), Duration::from_millis(500));
+        assert_eq!(verify_delay(3), Duration::from_secs(1));
+        assert_eq!(verify_delay(6), Duration::from_secs(5));
+        assert_eq!(verify_delay(u32::MAX), Duration::from_secs(5));
+    }
+
     fn ct_eq_matches_only_identical_bytes() {
         assert!(ct_eq(b"correct horse", b"correct horse"));
         assert!(ct_eq(b"", b""));
@@ -2947,7 +2973,7 @@ mod tests {
         // Nothing held (cold daemon): every guess is rejected.
         assert!(!service.verify_passphrase("anything").await);
 
-        *service.session_passphrase.lock().await = Some("correct horse".into());
+        *service.session_passphrase.lock().await = Some(Zeroizing::new("correct horse".into()));
         assert!(service.verify_passphrase("correct horse").await);
         assert!(!service.verify_passphrase("wrong").await);
     }
@@ -3001,10 +3027,15 @@ mod tests {
             .unwrap();
 
         // Replace (keep_session) retains it, so onboarding can skip Set Password.
-        *service.session_passphrase.lock().await = Some("pw".into());
+        *service.session_passphrase.lock().await = Some(Zeroizing::new("pw".into()));
         service.remove(true).await.unwrap();
         assert_eq!(
-            service.session_passphrase.lock().await.as_deref(),
+            service
+                .session_passphrase
+                .lock()
+                .await
+                .as_deref()
+                .map(|s| s.as_str()),
             Some("pw")
         );
         assert!(service.verify_passphrase("pw").await);
@@ -3050,7 +3081,7 @@ mod tests {
         let service = WalletService::load(test_paths("lock-session"), Arc::new(NullNotifier))
             .await
             .unwrap();
-        *service.session_passphrase.lock().await = Some("pw".into());
+        *service.session_passphrase.lock().await = Some(Zeroizing::new("pw".into()));
         service.session_locked.store(false, Ordering::SeqCst);
 
         service.lock_session();

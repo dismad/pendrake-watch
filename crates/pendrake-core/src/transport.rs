@@ -54,9 +54,12 @@ mod imp {
 
     impl Listener {
         pub fn bind(endpoint: &str) -> io::Result<Self> {
+            use std::os::unix::fs::PermissionsExt;
             // A stale socket file blocks bind; the service is single-instance.
             let _ = std::fs::remove_file(endpoint);
-            Ok(Self(UnixListener::bind(endpoint)?))
+            let listener = UnixListener::bind(endpoint)?;
+            std::fs::set_permissions(endpoint, std::fs::Permissions::from_mode(0o600))?;
+            Ok(Self(listener))
         }
 
         pub async fn accept(&mut self) -> io::Result<ServerConn> {
@@ -107,5 +110,23 @@ mod imp {
                 std::mem::replace(&mut self.next, ServerOptions::new().create(&self.endpoint)?);
             Ok(server)
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::Listener;
+
+    #[tokio::test]
+    async fn the_socket_is_owner_only() {
+        let dir = std::env::temp_dir().join("pendrake-test-socket-mode");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let endpoint = dir.join("daemon.sock");
+        let _listener = Listener::bind(endpoint.to_str().unwrap()).unwrap();
+        let mode = std::fs::metadata(&endpoint).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }
