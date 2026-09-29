@@ -1,5 +1,35 @@
 # Pendrake Watch — Update log
 
+## v0.1.1 — 2026-09-29
+
+Hardening, receive QR, and UI polish on `feat/multi-wallet`. One wallet stays
+active; sync still starts from the Sync chip.
+
+### Added
+- Receive QR on the active wallet card (UA + copy). Hidden while discreet or locked.
+- Custom wallet labels.
+- Lazy daemon start and optional stop-on-close.
+
+### Security
+- Socket `0600`, data dir `0700`.
+- IPC request lines capped at 64 KiB.
+- Session passphrase stored as `Zeroizing<String>`.
+- Wrong-passphrase delay doubles per miss up to 5s.
+
+### Fixed
+- Persist chosen indexer URI on import.
+- Discreet-mode display bug.
+- Lock `zeroize` on `pendrake-core` so CI `--locked` builds.
+
+### UI
+- Sidebar `w-80`; switcher full card width; dark thin scrollbar.
+- Window 1280×800 default, min 1100×720.
+- Receive is an icon-only control (no border).
+- Pool colors match ZecHub: Sapling gold, Orchard green, Ironwood red.
+
+---
+
+
 **Date:** 2026-08-17  
 **Focus:** Ironwood (NU6.3) support, multi-wallet accounts, manual sync, local build hardening, onboarding indexer choice, Notes UI polish
 
