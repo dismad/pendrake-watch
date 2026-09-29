@@ -2593,6 +2593,7 @@ dependencies = [
  "zcash_keys",
  "zcash_primitives 0.29.0",
  "zcash_protocol 0.10.0",
+ "zeroize",
  "zingo-netutils",
  "zingo-status 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "zingolib",
