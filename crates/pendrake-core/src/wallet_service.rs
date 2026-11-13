@@ -1037,19 +1037,16 @@ impl WalletService {
             *self.balance.write().await = Some(map_balance(&bal));
         }
 
-        let unified = client.unified_addresses_json().await;
-        let transparent = client.transparent_addresses_json().await;
-        let first_t = transparent[0]["encoded_address"]
-            .as_str()
-            .map(str::to_string);
+        let chain = client.chain_type();
+        let unified = client.unified_addresses().await;
+        let transparent = client.transparent_addresses().await;
+        let first_t = transparent.values().next().cloned();
         let addrs = unified
-            .members()
+            .values()
             .enumerate()
-            .filter_map(|(i, entry)| {
-                entry["encoded_address"].as_str().map(|ua| WalletAddress {
-                    ua: ua.to_string(),
-                    transparent: if i == 0 { first_t.clone() } else { None },
-                })
+            .map(|(i, ua)| WalletAddress {
+                ua: ua.encode(&chain),
+                transparent: if i == 0 { first_t.clone() } else { None },
             })
             .collect();
         *self.addresses.write().await = addrs;
@@ -1495,6 +1492,32 @@ impl WalletService {
         }
     }
 
+
+    /// End any in-flight pepper-sync task and wait for it to exit.
+    ///
+    /// An aborted round (generation change, client drop, indexer switch) must
+    /// not leave `sync_mode == Running`. The next `client.sync()` would then
+    /// fail immediately with `SyncAlreadyRunning` and the loop would thrash
+    /// between Syncing and Error without ever scanning.
+    async fn stop_and_reap_sync(&self) {
+        let mut guard = self.client.lock().await;
+        let Some(client) = guard.as_mut() else { return };
+        let _ = client.stop_sync();
+        let deadline = Instant::now() + Duration::from_secs(8);
+        loop {
+            match client.poll_sync() {
+                PollReport::NotReady => {
+                    if Instant::now() >= deadline {
+                        tracing::warn!("sync task did not exit after stop_sync; continuing");
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                PollReport::Ready(_) | PollReport::NoHandle => break,
+            }
+        }
+    }
+
     fn spawn_sync_loop(self: &Arc<Self>) {
         let service = Arc::clone(self);
         let generation = service.generation.load(Ordering::SeqCst);
@@ -1586,6 +1609,9 @@ impl WalletService {
         let mut backoff = BACKOFF_MIN;
         loop {
             if self.generation.load(Ordering::SeqCst) != generation {
+                // Ensure any in-flight task is reaped before this loop exits,
+                // so a replacement loop is not rejected with SyncAlreadyRunning.
+                self.stop_and_reap_sync().await;
                 tracing::debug!("sync loop {generation} retiring");
                 return;
             }
@@ -1778,6 +1804,10 @@ impl WalletService {
         // lock, so the wallet file stays frozen and unlock stays responsive.
         self.verify_chain_identity().await?;
 
+        // A prior aborted round can leave the task Running. Reap it so this
+        // sync() is not rejected with SyncAlreadyRunning.
+        self.stop_and_reap_sync().await;
+
         // Subscribe before kicking the sync task off so the SessionStarted event,
         // which carries the progress denominator, is never missed.
         let mut events = {
@@ -1802,6 +1832,7 @@ impl WalletService {
         let result = loop {
             // A (re)import or remove bumps the generation, retiring this round.
             if self.generation.load(Ordering::SeqCst) != generation {
+                self.stop_and_reap_sync().await;
                 return Ok(());
             }
 
@@ -1833,7 +1864,11 @@ impl WalletService {
                         let mut guard = self.client.lock().await;
                         match guard.as_mut() {
                             Some(client) => client.poll_sync(),
-                            None => return Ok(()),
+                            None => {
+                                drop(guard);
+                                self.stop_and_reap_sync().await;
+                                return Ok(());
+                            }
                         }
                     };
                     match report {
@@ -1984,6 +2019,8 @@ impl WalletService {
             LibSyncEvent::TipMoved { to } => {
                 view.chain_tip = view.chain_tip.max(u32::from(to));
             }
+            // Advisory scheduler snapshot. Replaced by the next one; no durable state.
+            LibSyncEvent::ScanPlanUpdated { .. } => {}
         }
     }
 
